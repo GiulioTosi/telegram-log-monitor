@@ -145,6 +145,9 @@ async def handle_log(session: aiohttp.ClientSession):
     global last_pos
     
     with open(LOG_PATH,'r') as f:
+        cur_size = os.path.getsize()
+        if cur_size < last_pos:
+            last_pos = 0
         f.seek(last_pos)
         lines = f.readlines()
         last_pos= f.tell()
