@@ -1,12 +1,12 @@
 [Unit]
-Description=Monitor caddy logs and generate telegram alerts
+Description=Monitor logs and generate telegram alerts
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/usr/local/bin/
-EnvironmentFile=/etc/telegram-monitor/env
-ExecStart=/path/to/virtualenv/python3 telegram-monitor.py
+WorkingDirectory={{WORKDIR}}
+EnvironmentFile={{ENV}}
+ExecStart={{PYTHON_BIN}} telegram-log-monitor.py
 Restart=on-failure
 
 [Install]

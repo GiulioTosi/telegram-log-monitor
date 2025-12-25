@@ -13,9 +13,8 @@ TELEGRAM_BOT_TOKEN = os.getenv("MY_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
-LOG_DIR = os.getenv("LOG_DIR")
-LOG_FILE = os.getenv("LOG_FILE")
-LOG_PATH = os.path.join(LOG_DIR,LOG_FILE)
+LOG_PATH = os.getenv("LOG_PATH")
+LOG_DIR = os.path.dirname(LOG_PATH)
 
 last_pos = 0
 ip_cache = {}
