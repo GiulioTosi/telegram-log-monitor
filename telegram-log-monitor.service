@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory={{WORKDIR}}
-EnvironmentFile={{ENV}}
+EnvironmentFile={{ENVFILE}}
 ExecStart={{PYTHON_BIN}} telegram-log-monitor.py
 Restart=on-failure
 
