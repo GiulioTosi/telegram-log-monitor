@@ -1,20 +1,24 @@
 import json
 import os
-import time
 from collections import defaultdict
 from telegram import Bot # v22.5 
 import asyncio
 import aiohttp
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+import logging
 
 # bot parameters
 TELEGRAM_BOT_TOKEN = os.getenv("MY_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
+# monitored logs path 
 LOG_PATH = os.getenv("LOG_PATH")
 LOG_DIR = os.path.dirname(LOG_PATH)
+
+# script's output logger
+logger = logging.getLogger(__name__)
 
 last_pos = 0
 ip_cache = {}
@@ -44,7 +48,7 @@ async def send_message(text, chat_id):
         async with bot:
             await bot.send_message(text=text, chat_id=chat_id)
     except Exception as e:
-        print(e)
+        logger.error(e)
         return
 
 async def run_bot(messages, chat_id):
@@ -65,12 +69,10 @@ def new_cache_entry():
     }
 
 async def get_ipinfo(ip,session):
-    global ip_cache
-
     if ip in ip_cache:
         entry = ip_cache[ip]
-        city = ip_cache[ip]['city']
-        region = ip_cache[ip]['region']
+        city = entry['city']
+        region = entry['region']
         if city and region:
             return f"{city}, {region}"
 
@@ -88,14 +90,17 @@ async def get_ipinfo(ip,session):
 
             return f"{city}, {region}"
     except asyncio.TimeoutError:
-        return "Connection timed out"
+        err_message = f"Connection timed out for ip {ip}"
     except (json.JSONDecodeError,KeyError):
-        return f"Invalid parse format"
+        err_message = f"Invalid parse format for ip {ip}"
     except aiohttp.ClientError as e:
-        return f"Client error: {e}"
+        err_message = f"Client error: {e}"
     except Exception as e:
-        return f"{e}"
+        err_message = f"Unknown exception: \"{e}\" for {ip}"
     
+    logger.error(err_message)
+    return err_message
+
 def parse_logs(lines):
     dic = defaultdict(new_ip_entry)
 
@@ -117,6 +122,7 @@ def parse_logs(lines):
                 dic[ip]['first_access'] = ts 
 
         except json.JSONDecodeError:
+            logger.warning("Wrong json in monitored log file")
             continue
     
     return dic
@@ -136,7 +142,9 @@ async def create_message(dic, session):
     
     if message_size > 4096:
         messages=messages[-1:]
-        messages.append('Other IPs were detected but message was too long. Only last acces is being displayed')
+        warn = 'Other IPs were detected but message was too long. Only last acces is being displayed'
+        logger.warning(warn)
+        messages.append(warn)
 
     return messages
 
@@ -146,6 +154,7 @@ async def handle_log(session: aiohttp.ClientSession):
     with open(LOG_PATH,'r') as f:
         cur_size = os.path.getsize(LOG_PATH)
         if cur_size < last_pos:
+            logger.info("Log rotation detected")
             last_pos = 0
         f.seek(last_pos)
         lines = f.readlines()
@@ -154,13 +163,15 @@ async def handle_log(session: aiohttp.ClientSession):
     dic = parse_logs(lines)
         
     messages = await create_message(dic,session)
-    
-    await run_bot(messages,CHAT_ID)
+    if messages:
+        await run_bot(messages,CHAT_ID)
 
 async def process_log(queue: asyncio.Queue):
+    logger.info("Main started")
     async with aiohttp.ClientSession() as session:
         while True:
             await queue.get()
+            logger.info("New access found")
             await handle_log(session)
 
 def init_cache():
@@ -168,6 +179,8 @@ def init_cache():
     ip_cache = defaultdict(new_cache_entry)
 
 async def main():
+    FORMAT = '[%(levelname)s] %(asctime)s: %(message)s'
+    logging.basicConfig(format=FORMAT,filename="/var/log/telegram-log-monitor.log",level=logging.INFO)
 
     init_cache()
     
@@ -178,6 +191,8 @@ async def main():
     observer = Observer()
     observer.schedule(event_handler,path=LOG_DIR,recursive=False)
     observer.start()
+
+    logger.info("Observer started")
 
     try:
         await process_log(queue)
