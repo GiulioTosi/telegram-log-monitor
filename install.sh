@@ -18,7 +18,7 @@ Usage: ./$(basename $0) LOGFILE [OPTION] ...
   -h, --help                  show this help
 
   WARNING: if not present, each path specified with these flags will be created
-  LOGFILE must be the first argument passed to this script."
+  LOGFILE must be the first argument passed to this script.
 
 EOF
 	exit 0
@@ -29,8 +29,15 @@ if [[ $# -eq 0 ]];then
 fi
 
 if [[ ! -f "$1" ]]; then
-	echo -e "$1: no such file or directory\n"
-	exit 1
+	case $1 in
+		-h|--help)
+			showhelp
+			;;
+		*)
+			echo -e "$1: no such file or directory\n"
+			exit 1
+			;;
+	esac	
 fi
 
 LOGFILE="$1"
